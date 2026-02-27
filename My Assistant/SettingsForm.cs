@@ -11,6 +11,11 @@ using NHTools;
 
 namespace My_Assistant
 {
+    /// <summary>
+    /// Kullanıcı ayarları formu.
+    /// KYK kullanıcı adı, şifre, ad soyad, log dosyası yolu ve 
+    /// sayfa zaman aşımı gibi ayarların yönetildiği pencere.
+    /// </summary>
     public partial class SettingsForm : Form
     {
         public SettingsForm()
@@ -18,6 +23,9 @@ namespace My_Assistant
             InitializeComponent();
         }
 
+        /// <summary>
+        /// KYK log dosyasının kaydedileceği konumu seçmek için dosya diyaloğu açar.
+        /// </summary>
         private void btnKYKLogBrowse_Click(object sender, EventArgs e)
         {
             using (SaveFileDialog sfd = new SaveFileDialog()
@@ -34,6 +42,10 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Tüm ayarları varsayılan değerlerine döndürür.
+        /// Kullanıcıdan onay alındıktan sonra işlem gerçekleştirilir.
+        /// </summary>
         private void btnDefault_Click(object sender, EventArgs e)
         {
             if (MessageBox.Show("Ayarları varsayılana döndürmek istediğiniz emin misiniz?","Soru", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
@@ -47,6 +59,9 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Formdaki tüm ayar değerlerini kalıcı olarak kaydeder.
+        /// </summary>
         private void btnSave_Click(object sender, EventArgs e)
         {
             Properties.Settings.Default.KYKLogPath = Delegates.Text.Get(txtKYKLogPath);
@@ -58,6 +73,9 @@ namespace My_Assistant
             MessageBox.Show("Ayarlar başarıyla kaydedildi!","Bilgi", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        /// <summary>
+        /// Form yüklendiğinde kaydedilmiş ayarları arayüze yükler.
+        /// </summary>
         private void SettingsForm_Load(object sender, EventArgs e)
         {
             Delegates.Text.Set(txtKYKLogPath, Properties.Settings.Default.KYKLogPath);
@@ -70,6 +88,9 @@ namespace My_Assistant
             Delegates.Text.Set(lblZamanAsimi, string.Format("{0} saniye", Value.ToString()));
         }
 
+        /// <summary>
+        /// Şifre alanının görünürlüğünü "Göster" onay kutusuyla değiştirir.
+        /// </summary>
         private void checkBox1_CheckedChanged(object sender, EventArgs e)
         {
             bool check = false;
@@ -84,6 +105,9 @@ namespace My_Assistant
         }
 
 
+        /// <summary>
+        /// Zaman aşımı kaydırıcısı değiştiğinde etiketi günceller.
+        /// </summary>
         private void trackBar1_Scroll(object sender, EventArgs e)
         {
             int Value = -1;

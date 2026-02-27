@@ -17,31 +17,48 @@ using System.Windows.Forms;
 
 namespace My_Assistant
 {
+    /// <summary>
+    /// Uygulamanın ana formu.
+    /// KYK Wi-Fi oturum yönetimini (giriş, çıkış, otomatik kontrol) sağlar.
+    /// </summary>
     public partial class MainForm : Form
     {
+        // Kullanıcı ayarlarından okunan KYK giriş bilgileri
         string KYKUserName;
         string KYKSifre;
         string KYKLogFileFullPath;
         string CommonLogFolderPath;
         string ADSOYAD;
+
+        // Sayfa yükleme zaman aşımı süresi (saniye)
         int ZamanAsimi;
 
+        // Chrome tarayıcı servis nesnesi
         ChromeDriverService srv;
 
+        /// <summary>
+        /// Ana form yapıcı metodu. Kullanıcı ayarlarını yükler ve varsayılan değerleri atar.
+        /// </summary>
         public MainForm()
         {
             InitializeComponent();
+
+            // Kullanıcı ayarlarını yerel değişkenlere yükle
             CommonLogFolderPath = Properties.Settings.Default.CommonLogFolderPath;
             KYKLogFileFullPath = Properties.Settings.Default.KYKLogPath;
             KYKUserName = Properties.Settings.Default.KYKUserName;
             KYKSifre = Properties.Settings.Default.KYKPassword;
             ADSOYAD = Properties.Settings.Default.ADSOYAD;
             ZamanAsimi = Properties.Settings.Default.ZamanAsimi;
+
+            // Açılan servislerin listesi boşsa yeni bir koleksiyon oluştur
             if (Properties.Settings.Default.AcilanServisler == null)
             {
                 Properties.Settings.Default.AcilanServisler = new StringCollection();
                 Properties.Settings.Default.Save();
             }
+
+            // Zaman aşımı geçersizse varsayılan 30 saniye olarak ayarla
             if (ZamanAsimi <= 0)
             {
                 Properties.Settings.Default.ZamanAsimi = 30;
@@ -50,12 +67,18 @@ namespace My_Assistant
             }
         }
 
+        // Selenium ChromeDriver tarayıcı nesnesi
         ChromeDriver driver;
 
+        /// <summary>
+        /// KYK Wi-Fi giriş sayfasına giderek kullanıcı bilgileriyle oturum açar.
+        /// </summary>
         private void GirisYap()
         {
             try { driver.Navigate().GoToUrl("https://wifi.kyk.gov.tr/login.html"); }
             catch { }
+
+            // Eğer oturum henüz açılmadıysa giriş bilgilerini doldur ve gönder
             if (!IsEnteredSucceed(driver))
             {
                 try
@@ -71,22 +94,34 @@ namespace My_Assistant
             }
         }
 
+        // Oturumun daha önce başarıyla açılıp açılmadığını takip eden bayrak
         private bool girisyapti = false;
+
+        /// <summary>
+        /// Mevcut oturumun durumunu kontrol eder. Oturum kapalıysa otomatik giriş yapar.
+        /// Zamanlayıcı (timer) tarafından periyodik olarak çağrılır.
+        /// </summary>
         private void CheckSessionOpen()
         {
             SaveKYKLog("Oturum Kontrol Ediliyor...");
             status1.SetDurum(Durum.Yukleniyor);
+
+            // Tarayıcı henüz oluşturulmadıysa yeni bir tane oluştur
             if (driver == null)
             {
                 CreateDriver();
             }
             try { driver.Navigate().GoToUrl("https://wifi.kyk.gov.tr/"); }
             catch { }
+
+            // Araç ipucu metnini son kontrol zamanıyla güncelle
             Optimizasyon.Delagate(chckKYK, () =>
             {
                 string caption = string.Format("30 sn de bir oturumuzu kontrol eder eğer wifi.kyk.gov.tr \nüzerinde oturum açılması gerekiyorsa otomatik giriş yapar.\nEn son kontrol edilme :{0}", DateTime.Now.ToLongTimeString());
                 toolTip1.SetToolTip(chckKYK, caption);
             });
+
+            // Oturum açıksa durumu güncelle, kapalıysa tekrar giriş yap
             if (IsEnteredSucceed(driver))
             {
                 status1.SetDurum(Durum.Aktif);
@@ -109,26 +144,41 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Başarılı giriş sonrası durumu günceller ve log kaydı oluşturur.
+        /// </summary>
         private void GirisYapildi()
         {
             status1.SetDurum(Durum.Aktif);
             SaveKYKLog("Oturum Açıldı!");
         }
 
+        /// <summary>
+        /// Yeni bir ChromeDriver tarayıcı örneği oluşturur ve yapılandırır.
+        /// Servis PID'si ayarlara kaydedilir (uygulama kapanırken temizlenmesi için).
+        /// </summary>
         private void CreateDriver()
         {
             srv.Start();
+
+            // Servis PID'sini kaydet (uygulama kapanışında öldürmek için)
             Properties.Settings.Default.AcilanServisler.Add(srv.ProcessId.ToString());
             Properties.Settings.Default.Save();
+
             ChromeOptions options = new ChromeOptions();
             options.AddArgument("disable-infobars");
             driver = new ChromeDriver(srv, options);
+
+            // Sayfa yükleme zaman aşımını kullanıcı ayarlarından al
             driver.Manage().Timeouts().PageLoad = new TimeSpan(0, 0, ZamanAsimi);
             driver.Manage().Window.Minimize();
             DriverChanged();
             Optimizasyon.Delagate(this, () => { this.Focus(); });
         }
 
+        /// <summary>
+        /// Mevcut ChromeDriver tarayıcısını kapatır ve kaynakları serbest bırakır.
+        /// </summary>
         private void DeleteDriver()
         {
             if (driver != null)
@@ -139,6 +189,9 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Tarayıcı durumu değiştiğinde arayüz butonlarının aktif/pasif durumunu günceller.
+        /// </summary>
         private void DriverChanged()
         {
             bool status = driver != null;
@@ -147,6 +200,12 @@ namespace My_Assistant
             Delegates.Enabled.Set(chckKYK, status);
         }
 
+        /// <summary>
+        /// Oturumun başarıyla açılıp açılmadığını kontrol eder.
+        /// Sayfadaki "myinfo" sınıfındaki elemanlarda ad soyad bilgisini arar.
+        /// </summary>
+        /// <param name="driver">Kontrol yapılacak ChromeDriver nesnesi</param>
+        /// <returns>Oturum açıksa true, değilse false</returns>
         private bool IsEnteredSucceed(ChromeDriver driver)
         {
             bool value = false;
@@ -169,6 +228,12 @@ namespace My_Assistant
             return value;
         }
 
+        /// <summary>
+        /// Giriş bilgilerinin geçersiz olup olmadığını kontrol eder.
+        /// Sayfada "Invalid username/password." mesajını arar.
+        /// </summary>
+        /// <param name="driver">Kontrol yapılacak ChromeDriver nesnesi</param>
+        /// <returns>Giriş bilgileri geçersizse true, değilse false</returns>
         private bool IsEnteredInvalid(ChromeDriver driver)
         {
             bool value = false;
@@ -192,18 +257,26 @@ namespace My_Assistant
             return value;
         }
 
+        /// <summary>
+        /// "Oturum Aç" butonuna tıklandığında çalışır.
+        /// Arka planda giriş işlemini başlatır ve sonucu kullanıcıya bildirir.
+        /// </summary>
         private void BtnGirisYap_Click(object sender, EventArgs e)
         {
             Optimizasyon.ArkaplandaCalistir(() =>
             {
                 SetStatusDelegate(Durum.Yukleniyor);
                 Optimizasyon.ArkaplandaCalistir(() => GirisYap());
+
+                // Geçersiz giriş bilgileri kontrolü
                 if (IsEnteredInvalid(driver))
                 {
                     SaveKYKLog("Giriş Yapılamadı!\nGiriş bilgileri geçersiz!");
                     SetStatusDelegate(Durum.Pasif);
                     MessageBox.Show("Giriş Yapılamadı!\nGiriş bilgileri geçersiz!", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
+
+                // Başarılı giriş kontrolü
                 if (IsEnteredSucceed(driver))
                 {
                     SetStatusDelegate(Durum.Aktif);
@@ -220,8 +293,13 @@ namespace My_Assistant
 
         }
 
+        /// <summary>
+        /// Form yüklendiğinde çalışır. Log klasörünü ayarlar, ChromeDriver servisini başlatır
+        /// ve önceki çalışmadan kalan ChromeDriver süreçlerini temizler.
+        /// </summary>
         private void Form1_Load(object sender, EventArgs e)
         {
+            // Log klasörü belirtilmemişse uygulama dizininde oluştur
             if (string.IsNullOrEmpty(CommonLogFolderPath))
             {
                 CommonLogFolderPath = Application.StartupPath + "\\Logs";
@@ -230,6 +308,8 @@ namespace My_Assistant
             }
             srv = ChromeDriverService.CreateDefaultService();
             srv.HideCommandPromptWindow = true;
+
+            // Önceki çalışmadan kalan ChromeDriver süreçlerini sonlandır
             StringCollection pids = Properties.Settings.Default.AcilanServisler;
             if (pids != null)
             {
@@ -246,14 +326,24 @@ namespace My_Assistant
                 Properties.Settings.Default.AcilanServisler = new StringCollection();
                 Properties.Settings.Default.Save();
             }
+
+            // Tarayıcıyı arka planda oluştur
             Optimizasyon.ArkaplandaCalistir(() => CreateDriver());
             
         }
 
+        /// <summary>
+        /// Form kapatıldığında çalışır. ChromeDriver tarayıcısını temizler.
+        /// </summary>
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
             DeleteDriver();
         }
+
+        /// <summary>
+        /// "Çıkış Yap" butonuna tıklandığında çalışır.
+        /// Wi-Fi portalındaki çıkış butonunu bulup tıklar.
+        /// </summary>
         private void btnLogout_click(object sender, EventArgs e)
         {
             Optimizasyon.ArkaplandaCalistir(() =>
@@ -261,6 +351,8 @@ namespace My_Assistant
 
                 SetStatusDelegate(Durum.Yukleniyor);
                 driver.Navigate().GoToUrl("https://wifi.kyk.gov.tr/");
+
+                // Sayfadaki "Logout" veya "Çıkış" butonunu bul
                 ReadOnlyCollection<IWebElement> liste = driver.FindElementsByClassName("ui-button-text");
                 IWebElement btnLogout = null;
                 foreach (IWebElement element in liste)
@@ -280,6 +372,10 @@ namespace My_Assistant
             });
         }
 
+        /// <summary>
+        /// "Otomatik Oturum Aç" onay kutusu durumu değiştiğinde çalışır.
+        /// İşaretlendiğinde zamanlayıcıyı başlatır, kaldırıldığında durdurur.
+        /// </summary>
         private void chckKYK_CheckedChanged(object sender, EventArgs e)
         {
             if (Delegates.Enabled.Get(chckKYK))
@@ -293,15 +389,28 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Zamanlayıcı her tetiklendiğinde (30 saniyede bir) oturum kontrolü yapar.
+        /// </summary>
         private void tmrKYK_Tick(object sender, EventArgs e)
         {
             Optimizasyon.ArkaplandaCalistir(() => CheckSessionOpen());
         }
 
+        /// <summary>
+        /// Durum göstergesini UI thread üzerinden güvenli şekilde günceller.
+        /// </summary>
+        /// <param name="durum">Yeni durum değeri</param>
         private void SetStatusDelegate(Durum durum)
         {
             Optimizasyon.Delagate(status1, () => { status1.SetDurum(durum); });
         }
+
+        /// <summary>
+        /// Belirtilen log metnini KYK log dosyasına kaydeder.
+        /// Log klasörü veya dosyası yoksa otomatik oluşturur.
+        /// </summary>
+        /// <param name="logText">Kaydedilecek log metni</param>
         private void SaveKYKLog(string logText)
         {
             if (!Directory.Exists(CommonLogFolderPath))
@@ -314,6 +423,12 @@ namespace My_Assistant
             }
             Optimizasyon.ArkaplandaCalistir(async () => { await SaveLogAsync(KYKLogFileFullPath, logText); });
         }
+
+        /// <summary>
+        /// Log metnini tarih ve saat bilgisiyle birlikte dosyaya asenkron olarak yazar.
+        /// </summary>
+        /// <param name="logFileFullPath">Log dosyasının tam yolu</param>
+        /// <param name="logText">Yazılacak log metni</param>
         private async Task SaveLogAsync(string logFileFullPath, string logText)
         {
             try
@@ -326,6 +441,9 @@ namespace My_Assistant
             catch { }
         }
 
+        /// <summary>
+        /// Log kayıtlarını gösteren pencereyi açar.
+        /// </summary>
         private void btnKYKLogShow_Click(object sender, EventArgs e)
         {
             using (ShowLogs frmLogShow = new ShowLogs(KYKLogFileFullPath))
@@ -334,17 +452,25 @@ namespace My_Assistant
             }
         }
 
+        /// <summary>
+        /// Ayarlar penceresini açar. Kapandığında güncel ayarları yeniden yükler.
+        /// Zaman aşımı değişmişse tarayıcıyı yeniden oluşturur.
+        /// </summary>
         private void btnSettings_Click(object sender, EventArgs e)
         {
             using (SettingsForm frmSett = new SettingsForm())
             {
                 int tmpZamanAsimi = Properties.Settings.Default.ZamanAsimi;
                 frmSett.ShowDialog();
+
+                // Ayarları yeniden yükle
                 KYKLogFileFullPath = Properties.Settings.Default.KYKLogPath;
                 KYKUserName = Properties.Settings.Default.KYKUserName;
                 KYKSifre = Properties.Settings.Default.KYKPassword;
                 ADSOYAD = Properties.Settings.Default.ADSOYAD;
                 ZamanAsimi = Properties.Settings.Default.ZamanAsimi;
+
+                // Zaman aşımı değiştiyse tarayıcıyı yeniden başlat
                 if(tmpZamanAsimi != ZamanAsimi)
                 {
                     DeleteDriver();
