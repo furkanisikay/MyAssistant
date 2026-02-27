@@ -11,6 +11,10 @@ using NHTools;
 
 namespace My_Assistant
 {
+    /// <summary>
+    /// Bağlantı durumunu görsel olarak gösteren özel kullanıcı kontrolü.
+    /// Aktif, Pasif ve Yükleniyor durumlarını simge ile temsil eder.
+    /// </summary>
     public partial class Status : UserControl
     {
         public Status()
@@ -18,9 +22,13 @@ namespace My_Assistant
             InitializeComponent();
         }
 
-
+        // Mevcut bağlantı durumu
         private Durum durum;
 
+        /// <summary>
+        /// Bağlantı durumunu günceller ve ilgili durum simgesini gösterir.
+        /// </summary>
+        /// <param name="value">Yeni durum değeri (None, Aktif, Pasif, Yukleniyor)</param>
         public void SetDurum(Durum value)
         {
             durum = value;
@@ -46,6 +54,9 @@ namespace My_Assistant
             });
         }
 
+        /// <summary>
+        /// Durum etiketinin metin değeri. UI thread güvenli erişim sağlar.
+        /// </summary>
         public string Yazi { get => Delegates.Text.Get(lblText); set => Delegates.Text.Set(lblText, value); }
 
     }
